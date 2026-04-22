@@ -2,6 +2,8 @@ package entity;
 
 import main.GamePanel;
 import main.KeyHandler;
+import manager.CollisionManager;
+import manager.GameState;
 
 import java.awt.*;
 import java.util.Arrays;
@@ -15,6 +17,8 @@ public class Player extends Entity {
     double speedCorrection;
     double accelBoost;
     double maxVelocityBoost;
+    public Rectangle playerArea =  new Rectangle();
+    public CollisionManager collisionManager;
 
     public Player(GamePanel gp, KeyHandler keyHandler, double speedCorrection) {
         this.gp = gp;
@@ -33,9 +37,18 @@ public class Player extends Entity {
         this.stoppingPower = 0.8 * speedCorrection;
         this.accelBoost = 1.5 * speedCorrection;
         this.maxVelocityBoost = 15 * speedCorrection;
+        this.playerArea.width = gp.tileSize;
+        this.playerArea.height = gp.tileSize;
+        this.collisionManager = new CollisionManager(this, gp);
     }
 
     public void update() {
+
+        if (collisionManager.checkCollision()) {
+            GameState.gameOver = true;
+        }
+         playerArea.x = gp.player.coordXY[0];
+         playerArea.y = gp.player.coordXY[1];
 
         double inputX = 0;
         double inputY = 0;
@@ -92,6 +105,8 @@ public class Player extends Entity {
         if (coordXY[1] > gp.screenHeight - gp.originalTileSize) {
             coordXY[1] = gp.screenHeight - gp.originalTileSize;
         }
+
+
     }
     public void draw(Graphics2D g2) {
         g2.setColor(Color.white);

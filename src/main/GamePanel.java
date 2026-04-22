@@ -1,52 +1,47 @@
 package main;
 
-import entity.FallingWall;
+import entity.Entity;
 import entity.Player;
-import manager.ChaosController;
-import manager.GameState;
-import manager.ScreenEffects;
-import manager.WallManager;
+import manager.*;
 
 import java.awt.RenderingHints;
-import java.awt.geom.Path2D;
 import java.awt.geom.AffineTransform;
-import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
-import static manager.GameState.time;
 
 public class GamePanel extends JPanel implements Runnable {
 
     // screen settings
     public final int originalTileSize = 32;
-    final int tileScale = 1;
-    final int screenScale = 4;
+    final double tileScale = 1.2;
+    final int screenScale = 5;
     final int[] resolution = {16,9};
-    int FPS = 165;
+    int FPS = 90;
+    double bgTimer = 0;
 
     int maxEntities = 100;
-    double intensity = 0;
+    double intensity = 1;
 
-    public final int tileSize = originalTileSize * tileScale;
+    public final int tileSize = (int) (originalTileSize * tileScale);
 
     public final int screenHeight = originalTileSize * screenScale * resolution[1];
     public final int screenWidth = originalTileSize * screenScale * resolution[0];
-    Image backgroundGif;
 
     double speedCorrection = (double) 60 / FPS;
 
     KeyHandler keyHandler = new KeyHandler();
     Thread gameThread;
-    Player player = new Player(this, keyHandler, speedCorrection);
-    GameState gameState = new GameState(intensity, FPS, speedCorrection);
+    public Player player = new Player(this, keyHandler, speedCorrection);
     ChaosController chaosController = new ChaosController();
+    GameState gameState = new GameState(intensity, FPS, speedCorrection, chaosController);
     ScreenEffects screenEffects = new ScreenEffects(chaosController, screenWidth, screenHeight);
 
-    List<FallingWall> entities = new ArrayList<>();
+    Color[] colors = getPhaseColors();
+
+    public List<Entity> entities = new ArrayList<>();
     WallManager wallManager = new WallManager(entities, this, speedCorrection, chaosController);
 
     public void startGameThread() {
@@ -60,8 +55,6 @@ public class GamePanel extends JPanel implements Runnable {
         this.setDoubleBuffered(true);
         this.addKeyListener(keyHandler);
         this.setFocusable(true);
-
-        backgroundGif = new ImageIcon(Objects.requireNonNull(getClass().getResource("/res/bg.gif"))).getImage();
     }
 
     @Override
@@ -85,98 +78,98 @@ public class GamePanel extends JPanel implements Runnable {
         }
     }
     public void update(double dt) {
+        if (false) {
+            if (keyHandler.rPressed) {
+                resetGame();
+            }
+            return;
+        }
+
+        // Use the controller's specific illusion speed
+        bgTimer += chaosController.illusionSpeed * dt * 5;
+
+        colors = getPhaseColors();
         gameState.update(dt);
         chaosController.update();
         screenEffects.update(dt);
         player.update();
         wallManager.update(dt);
 
-            for (FallingWall entity : entities) {
-                entity.update();
-            }
-            if (entities.size() > maxEntities) {
-                entities.remove(0);
-            }
-
+        for (Entity entity : entities) {
+            entity.update();
+        }
+        if (entities.size() > maxEntities) {
+            entities.remove(0);
+        }
     }
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
+
+        // SPEED OPTIMIZATIONS
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        g2.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_SPEED);
+
         AffineTransform originalTransform = g2.getTransform();
         screenEffects.applyScreenEffects(g2);
-        g2.drawImage(backgroundGif, 0, 0, screenWidth, screenHeight, null);
+        drawBackground(g2);
+
         player.draw(g2);
-            for (FallingWall entity : entities) {
+            for (Entity entity : entities) {
                 entity.draw(g2);
             }
         screenEffects.resetTransform(g2, originalTransform);
         gameState.draw(g2);
-        wallManager.draw(g2);
+        if (GameState.gameOver) {
+            g2.setColor(Color.RED);
+            g2.setFont(new Font("Times New Roman", Font.BOLD, 60));
+            g2.drawString("GAME OVER", (screenWidth -350) /2, screenHeight /2);
+        }
         g2.dispose();
     }
 
     private void drawBackground(Graphics2D g2) {
-        Color[] colors = getPhaseColors();
-        Color darkStrip = colors[0];
-        Color lightStrip = colors[1];
-        Color accentColor = colors[2];
+        // 1. Calculate the diagonal to ensure the screen is ALWAYS covered during rotation
+        int bufferSize = (int) Math.sqrt(screenWidth * screenWidth + screenHeight * screenHeight) + 200;
+        int centerX = screenWidth / 2;
+        int centerY = screenHeight / 2;
 
-        double t = time;
+        // 25 layers is the "sweet spot" for a dense look without killing the FPS
+        int totalLayers = 40;
 
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        for (int i = 0; i < totalLayers; i++) {
+            // Alternate colors
+            g2.setColor((i % 2 == 0) ? colors[0] : colors[1]);
 
-        g2.setColor(darkStrip);
-        g2.fillRect(-1000, -1000, screenWidth+1000, screenHeight+1000);
+            // Perspective scaling: squares get smaller as they go "deeper"
+            double ratio = (double) (totalLayers - i) / totalLayers;
+            int size = (int) (bufferSize * ratio);
 
-        g2.setColor(lightStrip);
-        int stripWidth = 60;
+            // ILLUSION MATH
+            // We use different frequencies for X and Y to create a "figure-8" or "oval" path
+            double intensityFactor = chaosController.intensity * 0.1;
+            double speed = bgTimer * (1 + intensityFactor);
+            double layerOffset = i * 0.2; // The "snake" delay between squares
 
-        double scrollOffset = (t * 50) % (stripWidth * 2);
+            // Vertical and Horizontal movement of the illusion tunnel
+            int offsetX = (int) (Math.sin(speed + layerOffset) * chaosController.illusionAmplitude);
+            int offsetY = (int) (Math.cos(speed * 0.8 + layerOffset) * (chaosController.illusionAmplitude * 0.6));
 
-        for (double x = -scrollOffset - (stripWidth * 2); x < screenWidth + (stripWidth * 2); x += stripWidth * 2) {
-            Path2D.Double path = new Path2D.Double();
+            // Center the square and apply the sway
+            int x = (centerX - size / 2) + offsetX;
+            int y = (centerY - size / 2) + offsetY;
 
-            for (int y = 0; y <= screenHeight + 120; y += 20) {
-                double warp = Math.sin(y * 0.015 + t * 2.5) * 40;
-                if (y == 0) {
-                    path.moveTo(x + warp, y);
-                } else {
-                    path.lineTo(x + warp, y);
-                }
-            }
-
-            for (int y = screenHeight + 20; y >= 0; y -= 20) {
-                double warp = Math.sin(y * 0.015 + t * 2.5) * 40;
-                path.lineTo(x + stripWidth + warp, y);
-            }
-
-            path.closePath();
-            g2.fill(path);
+            g2.fillRect(x, y, size, size);
         }
+    }
 
-        g2.setColor(accentColor);
-        int gridSize = 120;
-
-        for (int x = -gridSize; x <= screenWidth + gridSize; x += gridSize) {
-            for (int y = -gridSize; y <= screenHeight + gridSize; y += gridSize) {
-
-                double localT = t + (x * 0.005) + (y * 0.005);
-
-                double size = 25 + Math.sin(localT * 3) * 15;
-
-                double driftX = Math.cos(localT * 1.5) * 30;
-                double driftY = Math.sin(localT * 2.0) * 30;
-
-                AffineTransform oldTransform = g2.getTransform();
-
-                g2.translate(x + driftX, y + driftY);
-                g2.rotate(localT * 1.2);
-
-                g2.fillRoundRect((int)(-size / 2), (int)(-size / 2), (int)size, (int)size, 15, 15);
-
-                g2.setTransform(oldTransform);
-            }
-        }
+    public void resetGame() {
+        GameState.gameOver = false;
+        entities.clear();
+        chaosController = new ChaosController();
+        gameState = new GameState(intensity, FPS, speedCorrection, chaosController);
+        screenEffects = new ScreenEffects(chaosController, screenWidth, screenHeight);
     }
 
     private Color[] getPhaseColors() {

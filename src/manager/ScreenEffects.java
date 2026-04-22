@@ -17,74 +17,58 @@ public class ScreenEffects {
     }
 
     public void update(double dt) {
-        time += dt;
+        // Time scales with intensity to make the sway faster as chaos increases
+        time += dt * (1 + chaosController.intensity * 0.15);
     }
 
-    /**
-     * Applies screen effects (movement, rotation, distortion) to the graphics context
-     */
     public void applyScreenEffects(Graphics2D g2) {
-        // Apply floor/background movement effect
+        // Apply the effects in order
         if (chaosController.floorMovement > 0) {
-            applyFloorMovement(g2);
+            applySway(g2);
         }
 
-        // Apply rotation effect
         if (chaosController.rotation > 0) {
-            applyRotation(g2);
+            applyOscillatingRotation(g2);
         }
 
-        // Apply wavy distortion effect
         if (chaosController.intensity > 5) {
-            applyWaveDistortion(g2);
+            applyPulse(g2);
         }
     }
 
-    private void applyFloorMovement(Graphics2D g2) {
-        double centerX = screenWidth / 2.0;
-        double centerY = screenHeight / 2.0;
+    private void applySway(Graphics2D g2) {
+        // Swaying the whole coordinate system left and right
+        double range = chaosController.floorMovement * 20; // Amplitude of the sway
+        double xSway = Math.sin(time * 1.5) * range;
 
-        double waveX = Math.sin(time * 2) * chaosController.floorMovement * 3;
-        double waveY = Math.cos(time * 1.5) * chaosController.floorMovement * 2;
-
-                double swayX = Math.sin(time * 3 + chaosController.intensity) * chaosController.floorMovement * 2;
-
-        g2.translate(waveX + swayX, waveY);
-
-        double tiltAngle = Math.sin(time * 2.5) * chaosController.floorMovement * 0.02;
-        g2.rotate(tiltAngle, centerX, centerY);
+        g2.translate(xSway, 0);
     }
 
-    private void applyRotation(Graphics2D g2) {
+    private void applyOscillatingRotation(Graphics2D g2) {
         double centerX = screenWidth / 2.0;
         double centerY = screenHeight / 2.0;
 
-        double baseRotation = chaosController.rotation * 0.05;
+        // This makes the screen tilt left, then right, like a boat on waves
+        // maxAngle increases with chaosController.rotation
+        double maxAngle = Math.toRadians(chaosController.rotation * 5);
+        double currentAngle = Math.sin(time) * maxAngle;
 
-        double wobble = Math.sin(time * 2) * chaosController.rotation * 0.03;
-        double finalRotation = baseRotation + wobble;
-
-        g2.rotate(finalRotation, centerX, centerY);
+        g2.rotate(currentAngle, centerX, centerY);
     }
 
-    private void applyWaveDistortion(Graphics2D g2) {
+    private void applyPulse(Graphics2D g2) {
         double centerX = screenWidth / 2.0;
         double centerY = screenHeight / 2.0;
 
-        double pulse = Math.sin(time) * 0.01 * chaosController.intensity;
-        double scale = 1.0 + pulse;
+        // Subtle zoom pulse to add depth
+        double zoom = 1.0 + (Math.sin(time * 2) * 0.03);
 
-        g2.scale(scale, scale);
-
-
-        g2.translate((1 - scale) * centerX, (1 - scale) * centerY);
+        g2.translate(centerX, centerY);
+        g2.scale(zoom, zoom);
+        g2.translate(-centerX, -centerY);
     }
 
     public void resetTransform(Graphics2D g2, AffineTransform originalTransform) {
         g2.setTransform(originalTransform);
     }
 }
-
-
-
-
