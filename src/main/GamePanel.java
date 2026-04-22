@@ -16,7 +16,7 @@ public class GamePanel extends JPanel implements Runnable {
     final int tileScale = 1;
     final int screenScale = 4;
     final int[] resolution = {16,9};
-    int FPS = 60;
+    int FPS = 160;
 
     int maxEntities = 100;
     double difficulty = 20;
