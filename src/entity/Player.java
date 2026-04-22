@@ -12,10 +12,14 @@ public class Player extends Entity {
     private double maxVelocity;
     private double acceleration;
     private double stoppingPower;
+    double speedCorrection;
+    double accelBoost;
+    double maxVelocityBoost;
 
-    public Player(GamePanel gp, KeyHandler keyHandler) {
+    public Player(GamePanel gp, KeyHandler keyHandler, double speedCorrection) {
         this.gp = gp;
         this.keyHandler = keyHandler;
+        this.speedCorrection = speedCorrection;
         setDefaults();
     }
 
@@ -24,33 +28,39 @@ public class Player extends Entity {
     void setDefaults() {
         this.coordXY = new int[]{gp.screenWidth/2 - gp.tileSize /2, (int) (gp.screenHeight /1.25)};
         this.velocityXY = new double[]{0, 0};
-        this.maxVelocity = 10;
-        this.acceleration = 0.9;
-        this.stoppingPower = 0.8;
+        this.maxVelocity = 10 * speedCorrection;
+        this.acceleration = 0.9 * speedCorrection;
+        this.stoppingPower = 0.8 * speedCorrection;
+        this.accelBoost = 1.5 * speedCorrection;
+        this.maxVelocityBoost = 15 * speedCorrection;
     }
 
     public void update() {
 
         double inputX = 0;
         double inputY = 0;
+        boolean boostActive = false;
 
         if (keyHandler.leftPressed)  inputX = -1;
         if (keyHandler.rightPressed) inputX =  1;
         if (keyHandler.upPressed)    inputY = -1;
         if (keyHandler.downPressed)  inputY =  1;
+        if (keyHandler.spacePressed) boostActive = true;
 
-        velocityXY[0] += inputX * acceleration;
-        velocityXY[1] += inputY * acceleration;
 
-        if (velocityXY[0] > maxVelocity)
-            velocityXY[0] = maxVelocity;
-        if (velocityXY[0] < -maxVelocity)
-            velocityXY[0] = -maxVelocity;
 
-        if (velocityXY[1] > maxVelocity)
-            velocityXY[1] = maxVelocity;
-        if (velocityXY[1] < -maxVelocity)
-            velocityXY[1] = -maxVelocity;
+        velocityXY[0] += (boostActive) ? (inputX * accelBoost) : (inputX * acceleration);
+        velocityXY[1] += (boostActive) ? (inputY * accelBoost) : (inputY * acceleration);
+
+        if (velocityXY[0] > ((boostActive) ?  maxVelocityBoost :  maxVelocity))
+            velocityXY[0] = ((boostActive) ?  maxVelocityBoost :  maxVelocity);
+        if (velocityXY[0] < ((boostActive) ? -maxVelocityBoost : -maxVelocity))
+            velocityXY[0] = ((boostActive) ? -maxVelocityBoost : -maxVelocity);
+
+        if (velocityXY[1] > ((boostActive) ?  maxVelocityBoost :  maxVelocity))
+            velocityXY[1] = ((boostActive) ?  maxVelocityBoost :  maxVelocity);
+        if (velocityXY[1] < ((boostActive) ? -maxVelocityBoost : -maxVelocity))
+            velocityXY[1] = ((boostActive) ? -maxVelocityBoost : -maxVelocity);
 
         if (inputX == 0) {
             velocityXY[0] = approachZero(velocityXY[0], stoppingPower);
@@ -87,6 +97,7 @@ public class Player extends Entity {
         g2.setColor(Color.white);
         g2.fillRect(coordXY[0], coordXY[1], gp.tileSize, gp.tileSize);
         g2.drawString(Arrays.toString(coordXY), 100, (int) (gp.screenHeight / 1.5));
+
     }
 
     private double approachZero(double value, double amount) {
